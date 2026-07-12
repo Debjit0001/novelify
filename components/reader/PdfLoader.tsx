@@ -8,7 +8,10 @@ import {
   getBookmark,
   makeBookId,
   listBooks,
+  saveParsedPages,
+  loadParsedPages,
 } from "./useBookStorage"
+import { serializePages, deserializePages } from "./pageSerializer"
 
 // ── PDF Parsing ───────────────────────────────────────────────────────────────
 
@@ -115,10 +118,25 @@ export function usePdfLoader() {
       setIsLoading(true)
       setError(null)
       try {
+        const startPage = getBookmark(id)
+        
+        // Try to load from cache first (cache hit)
+        const cachedSerialized = await loadParsedPages(id)
+        if (cachedSerialized) {
+          const pages = deserializePages(cachedSerialized)
+          loadBook(pages, title, id, startPage)
+          return
+        }
+        
+        // Cache miss: parse PDF and save to cache
         const blob = await loadBookBlob(id)
         if (!blob) throw new Error("Book not found in storage.")
-        const startPage = getBookmark(id)
         const pages = await parsePdfFile(blob)
+        
+        // Save parsed pages to cache for future loads
+        const serialized = serializePages(pages)
+        await saveParsedPages(id, serialized)
+        
         loadBook(pages, title, id, startPage)
       } catch (err) {
         console.error("[v0] Open book error:", err)
@@ -145,6 +163,11 @@ export function usePdfLoader() {
         const pages = await parsePdfFile(file)
         const id = makeBookId(file)
         await saveBook(file, pages.length)
+        
+        // Cache the parsed pages for future loads
+        const serialized = serializePages(pages)
+        await saveParsedPages(id, serialized)
+        
         loadBook(pages, file.name.replace(/\.pdf$/i, ""), id, 1)
       } catch (err) {
         console.error("[v0] PDF parsing error:", err)

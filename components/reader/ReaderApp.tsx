@@ -24,10 +24,17 @@ export function ReaderApp() {
     else html.classList.remove("dark")
   }, [globalDark])
 
-  // Register service worker
+  // Register service worker for offline support and PWA installation
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {/* non-fatal */})
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((registration) => {
+          console.log("[v0] Service Worker registered successfully:", registration.scope)
+        })
+        .catch((err) => {
+          console.error("[v0] Service Worker registration failed:", err)
+        })
     }
   }, [])
 

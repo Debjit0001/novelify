@@ -11,9 +11,10 @@ export interface BookMeta {
   addedAt: number     // Date.now() at time of upload
 }
 
-// IDB keys: "book_blob_<id>" for blobs, "book_meta_<id>" for metadata
-const metaKey  = (id: string) => `book_meta_${id}`
-const blobKey  = (id: string) => `book_blob_${id}`
+// IDB keys: "book_blob_<id>" for blobs, "book_meta_<id>" for metadata, "book_parsed_<id>" for cached parsed pages
+const metaKey   = (id: string) => `book_meta_${id}`
+const blobKey   = (id: string) => `book_blob_${id}`
+const parsedKey = (id: string) => `book_parsed_${id}`
 
 const LS_BOOKMARKS_KEY = "novelread_bookmarks"  // { [id]: page }
 
@@ -64,13 +65,29 @@ export async function loadBookBlob(id: string): Promise<File | null> {
   }
 }
 
-/** Delete a book and its metadata from IDB (and its bookmark from LS) */
+/** Delete a book and its metadata from IDB (and its bookmark from LS and parsed cache) */
 export async function deleteBook(id: string): Promise<void> {
   await del(blobKey(id))
   await del(metaKey(id))
+  await del(parsedKey(id))  // Clear parsed pages cache
   const bookmarks = loadAllBookmarks()
   delete bookmarks[id]
   saveAllBookmarks(bookmarks)
+}
+
+/** Save cached parsed pages (array of formatted HTML strings) for a book */
+export async function saveParsedPages(id: string, parsedPages: string[]): Promise<void> {
+  await set(parsedKey(id), parsedPages)
+}
+
+/** Load cached parsed pages for a book (returns null if cache miss) */
+export async function loadParsedPages(id: string): Promise<string[] | null> {
+  try {
+    const cached = await get<string[]>(parsedKey(id))
+    return cached ?? null
+  } catch {
+    return null
+  }
 }
 
 // ── Bookmark API ──────────────────────────────────────────────────────────────
