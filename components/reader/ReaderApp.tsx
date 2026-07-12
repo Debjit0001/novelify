@@ -17,17 +17,29 @@ export function ReaderApp() {
 
   const hasBook = pdfPages.length > 0
 
-  // Apply global dark class to root
+  // Apply global dark class to root (starts in dark mode by default)
   useEffect(() => {
     const html = document.documentElement
     if (globalDark) html.classList.add("dark")
     else html.classList.remove("dark")
   }, [globalDark])
+  
+  // Initialize with dark class on mount
+  useEffect(() => {
+    document.documentElement.classList.add("dark")
+  }, [])
 
-  // Register service worker
+  // Register service worker for offline support and PWA installation
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {/* non-fatal */})
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((registration) => {
+          console.log("[v0] Service Worker registered successfully:", registration.scope)
+        })
+        .catch((err) => {
+          console.error("[v0] Service Worker registration failed:", err)
+        })
     }
   }, [])
 
@@ -56,7 +68,7 @@ export function ReaderApp() {
   // Restoring splash
   if (isRestoring) {
     return (
-      <div className="flex flex-col items-center justify-center h-dvh max-w-2xl mx-auto bg-background gap-4">
+      <div className="flex flex-col items-center justify-center h-dvh max-w-2xl mx-auto bg-background text-foreground gap-4 min-h-screen" style={{ backgroundColor: "var(--background)", color: "var(--foreground)" }}>
         <Loader2 className="size-8 text-primary animate-spin" aria-hidden="true" />
         <p className="text-sm text-muted-foreground">Loading your library…</p>
       </div>
@@ -64,7 +76,7 @@ export function ReaderApp() {
   }
 
   return (
-    <div className="flex flex-col h-dvh max-w-2xl mx-auto bg-background overflow-hidden">
+    <div className="flex flex-col h-dvh max-w-2xl mx-auto bg-background text-foreground overflow-hidden min-h-screen" style={{ backgroundColor: "var(--background)", color: "var(--foreground)" }}>
       {/* PWA install banner */}
       {showInstallBanner && (
         <div

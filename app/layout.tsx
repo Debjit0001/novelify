@@ -38,11 +38,15 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
         <link rel="apple-touch-icon" href="/icon-192.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="NovelRead" />
       </head>
-      <body className="antialiased bg-background text-foreground">
+      <body className="antialiased bg-background text-foreground min-h-dvh overflow-hidden" style={{ backgroundColor: "var(--background)", color: "var(--foreground)" }}>
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

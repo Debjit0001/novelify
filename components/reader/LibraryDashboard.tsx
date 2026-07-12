@@ -21,11 +21,16 @@ export function LibraryDashboard({
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   const refresh = useCallback(async () => {
     const metas = await listBooks()
     setBooks(metas)
     setLoaded(true)
+  }, [])
+
+  useEffect(() => {
+    setMounted(true)
   }, [])
 
   useEffect(() => {
@@ -60,12 +65,15 @@ export function LibraryDashboard({
           <button
             onClick={toggleGlobalDark}
             className="p-2 rounded-xl hover:bg-muted active:scale-95 transition-transform touch-manipulation"
-            aria-label={globalDark ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={mounted ? (globalDark ? "Switch to light mode" : "Switch to dark mode") : "Theme toggle"}
+            suppressHydrationWarning
           >
-            {globalDark ? (
-              <Sun className="size-5 text-muted-foreground" aria-hidden="true" />
-            ) : (
-              <Moon className="size-5 text-muted-foreground" aria-hidden="true" />
+            {mounted && (
+              globalDark ? (
+                <Sun className="size-5 text-muted-foreground" aria-hidden="true" />
+              ) : (
+                <Moon className="size-5 text-muted-foreground" aria-hidden="true" />
+              )
             )}
           </button>
         </div>

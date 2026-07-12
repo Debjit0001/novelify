@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { useReader, type PdfPage, type PdfTextItem } from "./ReaderContext"
 import {
   saveBook,
@@ -8,7 +8,10 @@ import {
   getBookmark,
   makeBookId,
   listBooks,
+  saveParsedPages,
+  loadParsedPages,
 } from "./useBookStorage"
+import { serializePages, deserializePages } from "./pageSerializer"
 
 // ── PDF Parsing ───────────────────────────────────────────────────────────────
 
@@ -76,38 +79,68 @@ export async function parsePdfFile(file: File | Blob): Promise<PdfPage[]> {
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function usePdfLoader() {
-  const { loadBook } = useReader()
+  const readerContext = useReader()
+  const loadBookRef = useRef(readerContext.loadBook)
+  useEffect(() => {
+    loadBookRef.current = readerContext.loadBook
+  }, [readerContext.loadBook])
+  
   const [isLoading, setIsLoading] = useState(false)
-  const [isRestoring, setIsRestoring] = useState(true)
+  const [isRestoring, setIsRestoring] = useState(false)  // Default to showing library, only set true if restoring
   const [error, setError] = useState<string | null>(null)
 
-  // On mount: if there's exactly one saved book (and user was reading it),
-  // auto-restore it so the reader opens immediately.
+  // On mount: immediately show library, then try to restore in background if there's one book
   useEffect(() => {
     let cancelled = false
+    
+    // Try to restore in background (non-blocking so library shows immediately)
     ;(async () => {
       try {
         const books = await listBooks()
-        // Only auto-restore if there is exactly one book; otherwise show library
-        if (books.length === 1) {
-          const meta = books[0]
-          const blob = await loadBookBlob(meta.id)
-          if (blob && !cancelled) {
-            const startPage = getBookmark(meta.id)
-            const pages = await parsePdfFile(blob)
-            if (!cancelled) loadBook(pages, meta.title, meta.id, startPage)
+        if (cancelled || books.length !== 1) return
+        
+        const meta = books[0]
+        const startPage = getBookmark(meta.id)
+        
+        // Try cache first for fast restore
+        try {
+          const cachedSerialized = await loadParsedPages(meta.id)
+          if (cancelled) return
+          
+          if (cachedSerialized && cachedSerialized.length > 0) {
+            const pages = deserializePages(cachedSerialized)
+            loadBookRef.current(pages, meta.title, meta.id, startPage)
+            return
           }
+        } catch (cacheErr) {
+          console.warn("[v0] Cache restore failed:", cacheErr)
         }
-      } catch {
-        // Silently ignore — user can pick from the library
-      } finally {
-        if (!cancelled) setIsRestoring(false)
+        
+        // Parse from blob if cache miss
+        const blob = await loadBookBlob(meta.id)
+        if (cancelled || !blob) return
+        
+        const pages = await parsePdfFile(blob)
+        if (cancelled) return
+        
+        loadBookRef.current(pages, meta.title, meta.id, startPage)
+        
+        // Save to cache for next time
+        try {
+          const serialized = serializePages(pages)
+          await saveParsedPages(meta.id, serialized)
+        } catch (e) {
+          console.warn("[v0] Cache save failed:", e)
+        }
+      } catch (err) {
+        console.warn("[v0] Background restore error:", err)
       }
     })()
+    
     return () => {
       cancelled = true
     }
-  }, [loadBook])
+  }, [])
 
   /** Open a specific book from the library by id */
   const openBookById = useCallback(
@@ -115,11 +148,36 @@ export function usePdfLoader() {
       setIsLoading(true)
       setError(null)
       try {
+        const startPage = getBookmark(id)
+        
+        // Try to load from cache first (cache hit)
+        try {
+          const cachedSerialized = await loadParsedPages(id)
+          if (cachedSerialized && cachedSerialized.length > 0) {
+            const pages = deserializePages(cachedSerialized)
+            loadBookRef.current(pages, title, id, startPage)
+            return
+          }
+        } catch (cacheErr) {
+          console.warn("[v0] Cache load error, falling back to parsing:", cacheErr)
+          // Fall through to parse from blob
+        }
+        
+        // Cache miss or error: parse PDF and save to cache
         const blob = await loadBookBlob(id)
         if (!blob) throw new Error("Book not found in storage.")
-        const startPage = getBookmark(id)
         const pages = await parsePdfFile(blob)
-        loadBook(pages, title, id, startPage)
+        
+        // Save parsed pages to cache for future loads
+        try {
+          const serialized = serializePages(pages)
+          await saveParsedPages(id, serialized)
+        } catch (cacheErr) {
+          console.warn("[v0] Cache save error, continuing anyway:", cacheErr)
+          // Non-fatal: app still works without cache
+        }
+        
+        loadBookRef.current(pages, title, id, startPage)
       } catch (err) {
         console.error("[v0] Open book error:", err)
         setError("Failed to open book. Please re-upload it.")
@@ -127,7 +185,7 @@ export function usePdfLoader() {
         setIsLoading(false)
       }
     },
-    [loadBook],
+    [],
   )
 
   /** Upload a new PDF file, save to IDB, and open it */
@@ -145,7 +203,18 @@ export function usePdfLoader() {
         const pages = await parsePdfFile(file)
         const id = makeBookId(file)
         await saveBook(file, pages.length)
-        loadBook(pages, file.name.replace(/\.pdf$/i, ""), id, 1)
+        console.log("[v0] Book saved successfully, id:", id)
+        
+        // Cache the parsed pages for future loads (non-fatal if fails)
+        try {
+          const serialized = serializePages(pages)
+          await saveParsedPages(id, serialized)
+          console.log("[v0] Parsed pages cached successfully")
+        } catch (cacheErr) {
+          console.warn("[v0] Cache save error on upload, continuing anyway:", cacheErr)
+        }
+        
+        loadBookRef.current(pages, file.name.replace(/\.pdf$/i, ""), id, 1)
       } catch (err) {
         console.error("[v0] PDF parsing error:", err)
         setError("Failed to load PDF. Please try a different file.")
@@ -153,7 +222,7 @@ export function usePdfLoader() {
         setIsLoading(false)
       }
     },
-    [loadBook],
+    [],
   )
 
   return { loadFile, openBookById, isLoading, isRestoring, error }
