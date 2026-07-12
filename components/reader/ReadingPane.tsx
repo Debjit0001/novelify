@@ -303,45 +303,39 @@ export function ReadingPane() {
     showUi()
   }, [currentPage, showUi])
 
-  // Auto-reveal/hide panels based on scroll position
-  // Show when at edges, hide immediately when scrolling away from edges
+  // Auto-reveal/hide panels based on scroll direction with buffer zones
+  // Prevents glitchy flickering near thresholds by tracking scroll direction
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    let lastWasAtEdge = true
-    let hideTimerId: ReturnType<typeof setTimeout> | null = null
+    let previousScrollTop = 0
     
     const handleScroll = () => {
-      const nearTop = el.scrollTop <= 10
-      const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 30
-      const atEdge = nearTop || nearBottom
+      const currentScrollTop = el.scrollTop
+      const isScrollingDown = currentScrollTop > previousScrollTop
+      const isScrollingUp = currentScrollTop < previousScrollTop
       
-      // Clear any pending hide
-      if (hideTimerId) {
-        clearTimeout(hideTimerId)
-        hideTimerId = null
-      }
+      const atAbsoluteTop = currentScrollTop <= 10
+      const atAbsoluteBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 30
       
-      // Show UI when at edge
-      if (atEdge) {
+      // Show UI when at absolute edges
+      if (atAbsoluteTop || atAbsoluteBottom) {
         showUi()
       }
-      // Schedule hide immediately when scrolling away from edges
-      else if (lastWasAtEdge && !atEdge && uiVisible) {
-        hideTimerId = setTimeout(() => {
-          // Use toggleUiVisible to hide if still not at edge
-          if (uiVisible) toggleUiVisible()
-        }, 0)
+      // Hide UI only if scrolled sufficiently away from edges (20px buffer)
+      else if (isScrollingDown && previousScrollTop <= 30 && currentScrollTop > 30) {
+        // Scrolling down from top — hide after 20px buffer
+        if (uiVisible) toggleUiVisible()
+      } else if (isScrollingUp && previousScrollTop >= el.scrollHeight - 50 && currentScrollTop < el.scrollHeight - 50) {
+        // Scrolling up from bottom — hide after 20px buffer
+        if (uiVisible) toggleUiVisible()
       }
       
-      lastWasAtEdge = atEdge
+      previousScrollTop = currentScrollTop
     }
     
     el.addEventListener("scroll", handleScroll, { passive: true })
-    return () => {
-      el.removeEventListener("scroll", handleScroll)
-      if (hideTimerId) clearTimeout(hideTimerId)
-    }
+    return () => el.removeEventListener("scroll", handleScroll)
   }, [currentPage, showUi, uiVisible, toggleUiVisible])
 
   // Swipe gesture handlers for page navigation
