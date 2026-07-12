@@ -303,18 +303,46 @@ export function ReadingPane() {
     showUi()
   }, [currentPage, showUi])
 
-  // Auto-reveal panels when the reader scrolls to the top or bottom of the page
+  // Auto-reveal/hide panels based on scroll position
+  // Show when at edges, hide immediately when scrolling away from edges
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
+    let lastWasAtEdge = true
+    let hideTimerId: ReturnType<typeof setTimeout> | null = null
+    
     const handleScroll = () => {
       const nearTop = el.scrollTop <= 10
       const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 30
-      if (nearTop || nearBottom) showUi()
+      const atEdge = nearTop || nearBottom
+      
+      // Clear any pending hide
+      if (hideTimerId) {
+        clearTimeout(hideTimerId)
+        hideTimerId = null
+      }
+      
+      // Show UI when at edge
+      if (atEdge) {
+        showUi()
+      }
+      // Schedule hide immediately when scrolling away from edges
+      else if (lastWasAtEdge && !atEdge && uiVisible) {
+        hideTimerId = setTimeout(() => {
+          // Use toggleUiVisible to hide if still not at edge
+          if (uiVisible) toggleUiVisible()
+        }, 0)
+      }
+      
+      lastWasAtEdge = atEdge
     }
+    
     el.addEventListener("scroll", handleScroll, { passive: true })
-    return () => el.removeEventListener("scroll", handleScroll)
-  }, [currentPage, showUi])
+    return () => {
+      el.removeEventListener("scroll", handleScroll)
+      if (hideTimerId) clearTimeout(hideTimerId)
+    }
+  }, [currentPage, showUi, uiVisible, toggleUiVisible])
 
   // Swipe gesture handlers for page navigation
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {

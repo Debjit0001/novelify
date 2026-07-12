@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { BookOpen, Moon, Sun, ChevronLeft } from "lucide-react"
 import { useReader } from "./ReaderContext"
 
@@ -13,6 +14,7 @@ interface TopHeaderProps {
 }
 
 export function TopHeader({ onFileLoad, isLoading, hasBook, onBack }: TopHeaderProps) {
+  const [mounted, setMounted] = useState(false)
   const {
     globalDark,
     toggleGlobalDark,
@@ -21,6 +23,10 @@ export function TopHeader({ onFileLoad, isLoading, hasBook, onBack }: TopHeaderP
     currentPage,
     uiVisible,
   } = useReader()
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
   // Library screen has no top header — branding / dark toggle live in the dashboard
   if (!hasBook) return null
 
@@ -80,12 +86,15 @@ export function TopHeader({ onFileLoad, isLoading, hasBook, onBack }: TopHeaderP
         <button
           onClick={toggleGlobalDark}
           className="p-2 rounded-lg hover:bg-muted active:scale-95 transition-transform touch-manipulation"
-          aria-label={globalDark ? "Switch to light mode" : "Switch to dark mode"}
+          aria-label={mounted ? (globalDark ? "Switch to light mode" : "Switch to dark mode") : "Theme toggle"}
+          suppressHydrationWarning
         >
-          {globalDark ? (
-            <Sun className="size-4 text-muted-foreground" aria-hidden="true" />
-          ) : (
-            <Moon className="size-4 text-muted-foreground" aria-hidden="true" />
+          {mounted && (
+            globalDark ? (
+              <Sun className="size-4 text-muted-foreground" aria-hidden="true" />
+            ) : (
+              <Moon className="size-4 text-muted-foreground" aria-hidden="true" />
+            )
           )}
         </button>
       </div>
