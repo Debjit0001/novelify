@@ -89,83 +89,56 @@ export function usePdfLoader() {
   const [isRestoring, setIsRestoring] = useState(false)  // Default to showing library, only set true if restoring
   const [error, setError] = useState<string | null>(null)
 
-  // On mount: if there's exactly one saved book (and user was reading it),
-  // auto-restore it so the reader opens immediately.
-  // Safety: always show library after 2s even if restore hangs
+  // On mount: immediately show library, then try to restore in background if there's one book
   useEffect(() => {
     let cancelled = false
     
-    // Always show library after 2 seconds as fallback
-    const safetyTimeout = setTimeout(() => {
-      if (!cancelled) {
-        console.log("[v0] Safety timeout fired, showing library")
-        setIsRestoring(false)
-      }
-    }, 2000)
-    
+    // Try to restore in background (non-blocking so library shows immediately)
     ;(async () => {
       try {
         const books = await listBooks()
-        if (cancelled) return
+        if (cancelled || books.length !== 1) return
         
-        // Only auto-restore if there is exactly one book; otherwise show library
-        if (books.length === 1) {
-          const meta = books[0]
-          const startPage = getBookmark(meta.id)
-          
-          // Try cache first
-          try {
-            const cachedSerialized = await loadParsedPages(meta.id)
-            if (cancelled) return
-            
-            if (cachedSerialized && cachedSerialized.length > 0) {
-              const pages = deserializePages(cachedSerialized)
-              loadBookRef.current(pages, meta.title, meta.id, startPage)
-              clearTimeout(safetyTimeout)
-              setIsRestoring(false)
-              return
-            }
-          } catch (cacheErr) {
-            if (cancelled) return
-            console.warn("[v0] Cache error:", cacheErr)
-          }
-          
-          // Parse from blob
-          const blob = await loadBookBlob(meta.id)
-          if (cancelled || !blob) return
-          
-          const pages = await parsePdfFile(blob)
+        const meta = books[0]
+        const startPage = getBookmark(meta.id)
+        
+        // Try cache first for fast restore
+        try {
+          const cachedSerialized = await loadParsedPages(meta.id)
           if (cancelled) return
           
-          loadBookRef.current(pages, meta.title, meta.id, startPage)
-          clearTimeout(safetyTimeout)
-          setIsRestoring(false)
-          
-          // Cache for next time
-          try {
-            const serialized = serializePages(pages)
-            await saveParsedPages(meta.id, serialized)
-          } catch (e) {
-            console.warn("[v0] Cache save failed:", e)
+          if (cachedSerialized && cachedSerialized.length > 0) {
+            const pages = deserializePages(cachedSerialized)
+            loadBookRef.current(pages, meta.title, meta.id, startPage)
+            return
           }
-        } else {
-          if (!cancelled) {
-            clearTimeout(safetyTimeout)
-            setIsRestoring(false)
-          }
+        } catch (cacheErr) {
+          console.warn("[v0] Cache restore failed:", cacheErr)
+        }
+        
+        // Parse from blob if cache miss
+        const blob = await loadBookBlob(meta.id)
+        if (cancelled || !blob) return
+        
+        const pages = await parsePdfFile(blob)
+        if (cancelled) return
+        
+        loadBookRef.current(pages, meta.title, meta.id, startPage)
+        
+        // Save to cache for next time
+        try {
+          const serialized = serializePages(pages)
+          await saveParsedPages(meta.id, serialized)
+        } catch (e) {
+          console.warn("[v0] Cache save failed:", e)
         }
       } catch (err) {
-        console.warn("[v0] Restore error:", err)
-        if (!cancelled) {
-          clearTimeout(safetyTimeout)
-          setIsRestoring(false)
-        }
+        console.warn("[v0] Background restore error:", err)
       }
     })()
     
     return () => {
       cancelled = true
-      clearTimeout(safetyTimeout)
     }
   }, [])
 

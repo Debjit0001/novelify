@@ -61,12 +61,11 @@ export function ReaderApp() {
   const triggerUpload = () => fileInputRef.current?.click()
 
   // Restoring splash
-  console.log("[v0] ReaderApp render, isRestoring:", isRestoring)
   if (isRestoring) {
     return (
       <div className="flex flex-col items-center justify-center h-dvh max-w-2xl mx-auto bg-background gap-4">
         <Loader2 className="size-8 text-primary animate-spin" aria-hidden="true" />
-        <p className="text-sm text-muted-foreground">WAIT FOR IT... (isRestoring: {String(isRestoring)})</p>
+        <p className="text-sm text-muted-foreground">Loading your library…</p>
       </div>
     )
   }
