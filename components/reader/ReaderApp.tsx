@@ -17,12 +17,17 @@ export function ReaderApp() {
 
   const hasBook = pdfPages.length > 0
 
-  // Apply global dark class to root
+  // Apply global dark class to root (starts in dark mode by default)
   useEffect(() => {
     const html = document.documentElement
     if (globalDark) html.classList.add("dark")
     else html.classList.remove("dark")
   }, [globalDark])
+  
+  // Initialize with dark class on mount
+  useEffect(() => {
+    document.documentElement.classList.add("dark")
+  }, [])
 
   // Register service worker for offline support and PWA installation
   useEffect(() => {

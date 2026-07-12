@@ -67,7 +67,7 @@ interface ReaderState {
 const ReaderContext = createContext<ReaderState | null>(null)
 
 export function ReaderProvider({ children }: { children: ReactNode }) {
-  const [globalDark, setGlobalDark] = useState(false)
+  const [globalDark, setGlobalDark] = useState(true)
   const [activeBookId, setActiveBookId] = useState("")
   const [pdfPages, setPdfPages] = useState<PdfPage[]>([])
   const [pdfName, setPdfName] = useState("")

@@ -262,6 +262,8 @@ export function ReadingPane() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const lastTapRef = useRef(0)
   const jumpInputRef = useRef<HTMLInputElement>(null)
+  const touchStartXRef = useRef(0)
+  const touchStartYRef = useRef(0)
 
   // Page-jump input state
   const [jumpMode, setJumpMode] = useState(false)
@@ -301,17 +303,49 @@ export function ReadingPane() {
     showUi()
   }, [currentPage, showUi])
 
-  // Auto-reveal panels when the reader scrolls to the bottom of the page
+  // Auto-reveal panels when the reader scrolls to the top or bottom of the page
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
     const handleScroll = () => {
+      const nearTop = el.scrollTop <= 10
       const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 30
-      if (nearBottom) showUi()
+      if (nearTop || nearBottom) showUi()
     }
     el.addEventListener("scroll", handleScroll, { passive: true })
     return () => el.removeEventListener("scroll", handleScroll)
   }, [currentPage, showUi])
+
+  // Swipe gesture handlers for page navigation
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    touchStartXRef.current = e.touches[0].clientX
+    touchStartYRef.current = e.touches[0].clientY
+  }, [])
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      const touchEndX = e.changedTouches[0].clientX
+      const touchEndY = e.changedTouches[0].clientY
+      const deltaX = touchStartXRef.current - touchEndX
+      const deltaY = Math.abs(touchStartYRef.current - touchEndY)
+
+      // Minimum swipe distance threshold (50px)
+      const SWIPE_THRESHOLD = 50
+      
+      // Ignore if vertical movement is too large (vertical scrolling, not swiping)
+      if (deltaY > SWIPE_THRESHOLD) return
+      
+      // Swipe left (deltaX positive) = next page
+      if (deltaX > SWIPE_THRESHOLD) {
+        nextPage()
+      }
+      // Swipe right (deltaX negative) = prev page
+      else if (deltaX < -SWIPE_THRESHOLD) {
+        prevPage()
+      }
+    },
+    [nextPage, prevPage],
+  )
 
   // Single-tap handler: toggle UI; ignore double-taps and interactive children
   const handleTap = useCallback(
@@ -348,6 +382,8 @@ export function ReadingPane() {
         className={`reading-pane flex-1 overflow-y-auto overflow-x-hidden ${BG_CLASS[readingBg]} ${FONT_CLASS[readingFont]}`}
         style={{ backgroundColor: "var(--reading-bg)", color: "var(--reading-fg)" }}
         onClick={handleTap}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         role="main"
         aria-label="Reading area"
       >
