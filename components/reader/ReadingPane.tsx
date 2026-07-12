@@ -303,40 +303,7 @@ export function ReadingPane() {
     showUi()
   }, [currentPage, showUi])
 
-  // Auto-reveal/hide panels based on scroll direction with buffer zones
-  // Prevents glitchy flickering near thresholds by tracking scroll direction
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    let previousScrollTop = 0
-    
-    const handleScroll = () => {
-      const currentScrollTop = el.scrollTop
-      const isScrollingDown = currentScrollTop > previousScrollTop
-      const isScrollingUp = currentScrollTop < previousScrollTop
-      
-      const atAbsoluteTop = currentScrollTop <= 10
-      const atAbsoluteBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 30
-      
-      // Show UI when at absolute edges
-      if (atAbsoluteTop || atAbsoluteBottom) {
-        showUi()
-      }
-      // Hide UI only if scrolled sufficiently away from edges (20px buffer)
-      else if (isScrollingDown && previousScrollTop <= 30 && currentScrollTop > 30) {
-        // Scrolling down from top — hide after 20px buffer
-        if (uiVisible) toggleUiVisible()
-      } else if (isScrollingUp && previousScrollTop >= el.scrollHeight - 50 && currentScrollTop < el.scrollHeight - 50) {
-        // Scrolling up from bottom — hide after 20px buffer
-        if (uiVisible) toggleUiVisible()
-      }
-      
-      previousScrollTop = currentScrollTop
-    }
-    
-    el.addEventListener("scroll", handleScroll, { passive: true })
-    return () => el.removeEventListener("scroll", handleScroll)
-  }, [currentPage, showUi, uiVisible, toggleUiVisible])
+
 
   // Swipe gesture handlers for page navigation
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {

@@ -73,7 +73,7 @@ export function ReaderProvider({ children }: { children: ReactNode }) {
   const [pdfName, setPdfName] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [uiVisible, setUiVisible] = useState(true)
-  const [readingBg, setReadingBg] = useState<ReadingBg>("white")
+  const [readingBg, setReadingBg] = useState<ReadingBg>("dark")
   const [readingFont, setReadingFont] = useState<ReadingFont>("serif")
   const [fontSize, setFontSize] = useState(17)
 
